@@ -12,6 +12,7 @@ from typing import Optional, Union, List
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Form
 from fastapi.responses import JSONResponse
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from PIL import Image
 from starlette.concurrency import run_in_threadpool
@@ -43,6 +44,14 @@ logger = logging.getLogger(__name__)
 
 # -------------------- FastAPI App --------------------
 app = FastAPI(title="Garment Extraction API", version="2.0.0")
+
+BASE_DIR = Path(__file__).resolve().parent
+
+app.mount(
+    "/images",
+    StaticFiles(directory=BASE_DIR / "dataset" / "images"),
+    name="images",
+)
 
 # Add middlewares (order matters - first added is outermost)
 app.add_middleware(RequestIDMiddleware)
