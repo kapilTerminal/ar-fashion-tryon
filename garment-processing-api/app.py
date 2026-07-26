@@ -7,6 +7,7 @@ import sys
 import secrets
 import tempfile
 from pathlib import Path
+from typing import Optional, Union, List
 
 from fastapi import FastAPI, File, UploadFile, Request, HTTPException, Form
 from fastapi.responses import JSONResponse
@@ -19,14 +20,18 @@ from starlette.concurrency import run_in_threadpool
 from config import (
     ALLOWED_EXTS, MAX_CONTENT_BYTES, MAX_CONTENT_MB,
     CORS_ALLOW_ORIGINS, CORS_ALLOW_CREDENTIALS,
-    FOLDER_ORIG, FOLDER_CUT, FOLDER_TRYON
+    FOLDER_ORIG, FOLDER_CUT, FOLDER_TRYON, DEFAULT_TOP_K
 )
-from models import HealthOut, UrlIn
+from models import HealthOut, UrlIn, RecommendResponse, RecommendationQueryParams, GarmentRecommendation, TryOnPayload
 from middleware import RequestIDMiddleware
 from services.classifier import load_model_and_config, classify_image
 from services.cloudinary_service import upload_bytes, download_url_bytes
 from services.gradio_service import get_gradio_client, call_gradio_api
 from services.image_processing import remove_background, image_to_png_bytes, ensure_png_format, construct_outfit_image
+from services.resnet_extractor import extract_resnet_features
+from services.recommendation_service import get_recommendations, recommend_hybrid_garments
+from services.user_profile_service import create_user_profile
+
 
 # -------------------- Logging Setup --------------------
 logging.basicConfig(
@@ -723,6 +728,115 @@ async def virtual_tryon(
     return JSONResponse(response)
 
 
+# -------------------- Recommendation Engine Route -------------------
+# -------------------- Recommendation Engine Route (Stage 4A: User Profile Module) -------------------
+@app.post("/recommend")
+async def recommend_garments(
+    request: Request,
+    person_image: UploadFile = File(...),
+    gender: str = Form("unspecified"),
+    occasion: str = Form("casual"),
+    preferred_color: str = Form("black"),
+    preferred_style: str = Form("streetwear"),
+    style_preference: Optional[str] = Form(None),
+    body_type: str = Form("regular"),
+    skin_tone: str = Form("neutral")
+):
+    """
+    User Profile & Fashion Recommendation Endpoint (Stage 4A).
+
+    Accepts:
+        - person_image: Uploaded person image (File)
+        - gender: User gender (Form)
+        - occasion: Target occasion string (Form)
+        - preferred_color: Preferred color string (Form)
+        - preferred_style: Preferred style string (Form)
+        - body_type: Body type (Form)
+        - skin_tone: Skin tone (Form)
+
+    Workflow (Stage 4A):
+        1. Validates input image and parameters.
+        2. Saves image into uploads/users/.
+        3. Extracts a 2048-dimensional ResNet50 feature embedding vector.
+        4. Constructs a UserProfile instance.
+        5. Returns the generated UserProfile verification JSON.
+    """
+    request_id = getattr(request.state, "request_id", "unknown")
+    effective_style = style_preference if (style_preference and style_preference != "streetwear") else preferred_style
+
+    logger.info(
+        f"[{request_id}] recommend started (Stage 4A UserProfile): "
+        f"gender={gender}, occasion={occasion}, color={preferred_color}, "
+        f"style={effective_style}, body_type={body_type}, skin_tone={skin_tone}"
+    )
+
+    # 1. Validate file type
+    filename = person_image.filename or ""
+    if not filename or not _allowed_file(filename):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Invalid file type. Allowed: {', '.join(sorted(ALLOWED_EXTS))}"
+        )
+
+    # 2. Read and validate image content & size
+    person_bytes = await person_image.read()
+    if len(person_bytes) > MAX_CONTENT_BYTES:
+        raise HTTPException(
+            status_code=413,
+            detail=f"File too large (>{int(MAX_CONTENT_MB)}MB)"
+        )
+
+    try:
+        Image.open(io.BytesIO(person_bytes)).verify()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Uploaded file is not a valid image")
+
+    # 3. Create UserProfile using UserProfileService
+    try:
+        user_profile = await run_in_threadpool(
+            create_user_profile,
+            image_input=person_bytes,
+            gender=gender,
+            occasion=occasion,
+            preferred_color=preferred_color,
+            preferred_style=effective_style,
+            body_type=body_type,
+            skin_tone=skin_tone,
+            original_filename=filename
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] UserProfile creation failed: {e}")
+        raise HTTPException(status_code=500, detail=f"UserProfile service error: {str(e)}")
+
+    logger.info(f"[{request_id}] UserProfile created successfully: path={user_profile.image_path}")
+
+    # 4. Generate Top-10 Hybrid Recommendations (Stage 4B)
+    try:
+        rec_result = await run_in_threadpool(
+            recommend_hybrid_garments,
+            user_profile=user_profile,
+            top_k=10
+        )
+    except Exception as e:
+        logger.error(f"[{request_id}] Hybrid recommendation engine failed: {e}")
+        raise HTTPException(status_code=500, detail=f"Hybrid recommendation error: {str(e)}")
+
+    logger.info(
+        f"[{request_id}] Hybrid recommendations generated: "
+        f"retrieved={rec_result['total_candidates_retrieved']}, "
+        f"filtered={rec_result['candidates_after_filtering']}, "
+        f"top_returned={len(rec_result['recommendations'])}"
+    )
+
+    response_payload = {
+        "user_profile": user_profile.to_verification_dict(),
+        "recommendations": rec_result["recommendations"]
+    }
+
+    return JSONResponse(content=response_payload)
+
+
+
 # -------------------- Global Exception Handler -------------------
 @app.exception_handler(Exception)
 async def unhandled_exc_handler(request: Request, exc: Exception):
@@ -736,3 +850,4 @@ async def unhandled_exc_handler(request: Request, exc: Exception):
             "request_id": request_id
         }
     )
+

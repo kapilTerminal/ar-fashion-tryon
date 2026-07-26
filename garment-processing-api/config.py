@@ -44,3 +44,8 @@ MODEL_PATH = MODELS_DIR / "best_clothing_model.h5"
 LABELS_PATH = MODELS_DIR / "class_labels.json"
 CONFIG_PATH = MODELS_DIR / "model_config.json"
 REJECTION_PATH = MODELS_DIR / "rejection_threshold.json"
+
+# -------------------- Recommendation Engine --------------------
+RECOMMENDATION_EMBEDDING_DIM = 2048
+DEFAULT_TOP_K = 5
+

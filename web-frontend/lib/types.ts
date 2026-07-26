@@ -172,3 +172,45 @@ export interface VtonStartResponse {
 }
 
 export type VtonJobResponse = VtonStartResponse;
+
+// Recommendation Engine API Types
+export interface RecommendationQueryParams {
+  occasion: string;
+  preferred_color: string;
+  style_preference: string;
+}
+
+export interface GarmentRecommendation {
+  rank: number;
+  garment_id: string;
+  name: string;
+  category: string;
+  occasion: string;
+  color: string;
+  style: string;
+  similarity_score: number;
+  garment_url: string;
+  cutout_url: string;
+  rating?: number; // 1 to 5 rating scale
+  tryon_payload: {
+    cloth_type: ClothType | string;
+    process_garment?: boolean;
+  };
+}
+
+export interface RecommendResponse {
+  success: boolean;
+  request_id: string;
+  person_image_url?: string;
+  query_parameters: RecommendationQueryParams;
+  total_candidates_found: number;
+  recommendations: GarmentRecommendation[];
+}
+
+export interface RecommendationRequestParams {
+  person_image: File;
+  occasion: string;
+  preferred_color: string;
+  style_preference: string;
+}
+

@@ -129,6 +129,12 @@ export const navigationItems: NavigationItem[] = [
     badge: 'New',
   },
   {
+    title: 'Recommendation',
+    href: '/recommend',
+    description: 'AI-powered outfit recommendations',
+    icon: Sparkles,
+  },
+  {
     title: 'Docs',
     href: '/docs',
     description: 'Documentation and guides',
