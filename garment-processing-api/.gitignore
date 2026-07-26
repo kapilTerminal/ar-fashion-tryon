@@ -2,3 +2,21 @@
 .uv-cache/
 __pycache__/
 *.py[cod]
+# Dataset
+dataset/
+
+# User uploads
+uploads/
+
+# Generated AI artifacts
+*.npy
+*.pkl
+*.index
+faiss_index.bin
+embeddings.npy
+image_ids.npy
+# Local dataset (do not commit)
+garment-processing-api/dataset/
+
+# User uploads (do not commit)
+garment-processing-api/uploads/
