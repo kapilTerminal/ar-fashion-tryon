@@ -28,6 +28,7 @@ def create_user_profile(
     occasion: str = "casual",
     preferred_color: str = "black",
     preferred_style: str = "streetwear",
+    category: Optional[str] = None,
     body_type: str = "regular",
     skin_tone: str = "neutral",
     original_filename: Optional[str] = None
@@ -99,6 +100,7 @@ def create_user_profile(
         occasion=occasion,
         preferred_color=preferred_color,
         preferred_style=preferred_style,
+        category=category,
         body_type=body_type,
         skin_tone=skin_tone
     )

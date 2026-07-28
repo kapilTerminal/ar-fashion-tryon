@@ -748,6 +748,7 @@ async def recommend_garments(
     preferred_color: str = Form("black"),
     preferred_style: str = Form("streetwear"),
     style_preference: Optional[str] = Form(None),
+    category: Optional[str] = Form(None),
     body_type: str = Form("regular"),
     skin_tone: str = Form("neutral")
 ):
@@ -771,12 +772,17 @@ async def recommend_garments(
         5. Returns the generated UserProfile verification JSON.
     """
     request_id = getattr(request.state, "request_id", "unknown")
-    effective_style = style_preference if (style_preference and style_preference != "streetwear") else preferred_style
+    # `preferred_style` is the canonical recommendation style.  The legacy
+    # `style_preference` field remains accepted for compatibility, but is only
+    # used when the canonical field was omitted by an older client.
+    effective_style = (preferred_style or style_preference or "").strip().lower()
+    if not effective_style:
+        effective_style = "streetwear"
 
     logger.info(
         f"[{request_id}] recommend started (Stage 4A UserProfile): "
         f"gender={gender}, occasion={occasion}, color={preferred_color}, "
-        f"style={effective_style}, body_type={body_type}, skin_tone={skin_tone}"
+        f"style={effective_style}, category={category}, body_type={body_type}, skin_tone={skin_tone}"
     )
 
     # 1. Validate file type
@@ -809,6 +815,7 @@ async def recommend_garments(
             occasion=occasion,
             preferred_color=preferred_color,
             preferred_style=effective_style,
+            category=category,
             body_type=body_type,
             skin_tone=skin_tone,
             original_filename=filename

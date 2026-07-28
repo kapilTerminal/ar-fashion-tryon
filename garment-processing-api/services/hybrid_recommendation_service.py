@@ -99,13 +99,24 @@ class HybridRecommendationService:
         logger.info(f"Successfully loaded {len(self.styles_dict)} items into garment metadata catalog.")
         self.is_loaded = True
 
-    def faiss_search(self, user_embedding: np.ndarray, top_k: int = 200) -> List[Tuple[Dict[str, Any], float]]:
+    def faiss_search(
+        self,
+        user_embedding: np.ndarray,
+        candidate_metadata: Optional[List[Dict[str, Any]]] = None,
+        top_k: int = 200,
+    ) -> List[Tuple[Dict[str, Any], float]]:
         """
-        Execute FAISS vector search for top-K nearest neighbors.
+        Rank catalog items with the existing FAISS cosine-similarity index.
+
+        When candidate_metadata is supplied, similarity is calculated only for
+        that metadata-filtered pool.  This avoids using a full person-image
+        embedding to choose the global garment candidate set while preserving
+        the existing ResNet50/FAISS artifacts.
 
         Args:
             user_embedding: 2048-dimensional feature embedding array.
-            top_k: Number of candidate items to retrieve (default 200).
+            candidate_metadata: Optional metadata-first candidate pool.
+            top_k: Number of global candidates to retrieve when no pool is supplied.
 
         Returns:
             List of tuples: (garment_metadata_dict, similarity_score).
@@ -114,6 +125,20 @@ class HybridRecommendationService:
         norm = np.linalg.norm(vec)
         if norm > 0:
             vec = vec / norm
+
+        if candidate_metadata is not None:
+            row_positions = self.faiss_metadata.get("row_positions", {})
+            candidates = []
+            for meta in candidate_metadata:
+                row_position = row_positions.get(str(meta["id"]))
+                if row_position is None:
+                    continue
+                # IndexFlatIP stores the normalized catalog vectors.  Their dot
+                # product with the normalized query is cosine similarity.
+                catalog_vector = self.index.reconstruct(int(row_position))
+                similarity = float(np.clip(np.dot(vec[0], catalog_vector), 0.0, 1.0))
+                candidates.append((meta, similarity))
+            return candidates
 
         distances, indices = self.index.search(vec, top_k)
 
@@ -172,41 +197,73 @@ class HybridRecommendationService:
             return {"party", "casual"}
         return {occ_clean}
 
-    def hard_filter_candidates(
-        self,
-        candidates: List[Tuple[Dict[str, Any], float]],
-        gender: str,
-        occasion: str
-    ) -> List[Tuple[Dict[str, Any], float]]:
-        """
-        Apply hard constraint filtering by Gender and Occasion.
-        Includes automatic relaxation fallback if strict filtering yields < 10 candidates.
-        """
-        allowed_genders = self.get_allowed_genders(gender)
-        allowed_usages = self.get_allowed_usages(occasion)
+    @staticmethod
+    def _matches_category(meta: Dict[str, Any], category: Optional[str]) -> bool:
+        """Match an optional requested category against catalog category fields."""
+        if not category or not category.strip():
+            return True
+        requested = category.strip().lower()
+        values = (
+            meta.get("masterCategory", "").lower(),
+            meta.get("subCategory", "").lower(),
+            meta.get("articleType", "").lower(),
+        )
+        return any(requested in value or value in requested for value in values if value)
 
-        # Stage 1: Strict filtering by both Gender & Occasion
-        filtered = [
-            (meta, sim) for meta, sim in candidates
-            if meta["gender"].lower() in allowed_genders and (
-                meta["usage"].lower() in allowed_usages or not meta["usage"]
-            )
+    @staticmethod
+    def _style_is_available(style: str) -> bool:
+        """Return whether the catalog has a defined rule for this style value."""
+        return style.strip().lower() in {
+            "streetwear", "casual", "business", "formal", "office",
+            "ethnic", "traditional", "athletic", "sports", "sportswear",
+            "glamour", "party",
+        }
+
+    def _matches_style(self, meta: Dict[str, Any], style: str) -> bool:
+        """Use the same metadata style rules for hard candidate generation."""
+        return self.compute_style_score(style, meta) >= 0.9
+
+    def generate_metadata_candidates(self, user_profile: UserProfile) -> List[Dict[str, Any]]:
+        """
+        Build candidates before similarity ranking.
+
+        Gender is immutable.  Style may be relaxed first, and occasion only if
+        no gender-safe results exist.  Color remains a soft ranking preference,
+        so it is never used to exclude a garment or force a fallback.
+        """
+        allowed_genders = self.get_allowed_genders(user_profile.gender)
+        allowed_usages = self.get_allowed_usages(user_profile.occasion)
+        style = (user_profile.preferred_style or "").strip().lower()
+        style_is_available = self._style_is_available(style)
+
+        gender_and_category = [
+            meta for meta in self.styles_dict.values()
+            if meta["gender"].lower() in allowed_genders
+            and self._matches_category(meta, user_profile.category)
         ]
+        occasion_candidates = [
+            meta for meta in gender_and_category
+            if meta["usage"].lower() in allowed_usages or not meta["usage"]
+        ]
+        strict_candidates = [
+            meta for meta in occasion_candidates
+            if not style_is_available or self._matches_style(meta, style)
+        ]
+        if strict_candidates:
+            return strict_candidates
 
-        # Stage 2: Fallback - relax occasion filter if count < 10
-        if len(filtered) < 10:
-            logger.info(f"Strict filter yielded {len(filtered)} items (< 10). Relaxing occasion filter...")
-            filtered = [
-                (meta, sim) for meta, sim in candidates
-                if meta["gender"].lower() in allowed_genders
-            ]
+        # Fallback 1: remove style only; never remove gender/category/occasion.
+        if style_is_available and occasion_candidates:
+            logger.info("No strict candidates; relaxing style while retaining gender, category, and occasion.")
+            return occasion_candidates
 
-        # Stage 3: Fallback - relax all filters if count < 10
-        if len(filtered) < 10:
-            logger.info("Relaxing all hard filters to guarantee candidate pool...")
-            filtered = list(candidates)
+        # Fallback 2 (color) is intentionally a no-op: color is always soft.
+        # Fallback 3: relax occasion only when no strict gender-safe candidate exists.
+        if gender_and_category:
+            logger.info("No occasion candidates; relaxing occasion while retaining gender and category.")
+            return gender_and_category
 
-        return filtered
+        return []
 
     @staticmethod
     def compute_color_score(preferred_color: str, base_colour: str) -> float:
@@ -313,7 +370,8 @@ class HybridRecommendationService:
     ) -> List[Dict[str, Any]]:
         """
         Compute multi-attribute scores and calculate final hybrid weighted score:
-        Final Score = 0.60 * Similarity + 0.15 * Occasion + 0.10 * Style + 0.10 * Color + 0.05 * Rule Score
+        Final Score = 0.25 * Similarity + 0.25 * Occasion + 0.20 * Style
+                      + 0.15 * Color + 0.15 * Body/Skin suitability.
         """
         allowed_usages = self.get_allowed_usages(user_profile.occasion)
         scored_items = []
@@ -335,11 +393,11 @@ class HybridRecommendationService:
 
             # 5. Hybrid Weighted Score
             final_score = (
-                0.60 * similarity
-                + 0.15 * occ_score
-                + 0.10 * style_score
-                + 0.10 * color_score
-                + 0.05 * rule_score
+                0.25 * similarity
+                + 0.25 * occ_score
+                + 0.20 * style_score
+                + 0.15 * color_score
+                + 0.15 * rule_score
             )
             final_score = round(float(final_score), 4)
 
@@ -371,31 +429,31 @@ class HybridRecommendationService:
     def recommend(self, user_profile: UserProfile, top_k: int = 10) -> Dict[str, Any]:
         """
         Complete Hybrid Recommendation Pipeline:
-        1. FAISS Search (Top 200 candidates)
-        2. Metadata Hard Filtering
-        3. Multi-attribute Rule Scoring
-        4. Hybrid Weighted Ranking
-        5. Return Top 10 recommendations.
+        1. Metadata-first candidate generation
+        2. FAISS cosine ranking within that pool
+        3. Multi-attribute rule scoring
+        4. Hybrid weighted ranking
+        5. Return up to Top 10 recommendations.
 
         Returns:
             Dict containing total_candidates_retrieved, candidates_after_filtering, and recommendations list.
         """
         user_emb = user_profile.get_embedding_numpy()
 
-        # Step 2: FAISS Search (Top K = 200)
-        retrieved_candidates = self.faiss_search(user_emb, top_k=200)
+        metadata_candidates = self.generate_metadata_candidates(user_profile)
+        candidates_after_filtering = len(metadata_candidates)
+
+        # FAISS similarity ranks only metadata-eligible garments.  The existing
+        # person-image score remains a reduced-weight signal until a later
+        # garment-region embedding redesign.
+        retrieved_candidates = self.faiss_search(
+            user_emb,
+            candidate_metadata=metadata_candidates,
+        )
         total_retrieved = len(retrieved_candidates)
 
-        # Step 4: Hard Filtering (Gender & Occasion)
-        filtered_candidates = self.hard_filter_candidates(
-            retrieved_candidates,
-            gender=user_profile.gender,
-            occasion=user_profile.occasion
-        )
-        candidates_after_filtering = len(filtered_candidates)
-
         # Step 5 & 6: Compute Hybrid Scores & Rank Top 10
-        ranked_results = self.compute_hybrid_scores(filtered_candidates, user_profile)
+        ranked_results = self.compute_hybrid_scores(retrieved_candidates, user_profile)
         top_recommendations = ranked_results[:top_k]
 
         return {

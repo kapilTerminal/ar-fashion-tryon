@@ -1,7 +1,7 @@
 """
 UserProfile Model for AI Fashion Recommendation System.
 """
-from typing import List, Dict, Any, Union
+from typing import List, Dict, Any, Union, Optional
 import numpy as np
 from pydantic import BaseModel, Field
 
@@ -16,6 +16,7 @@ class UserProfile(BaseModel):
     occasion: str = "casual"
     preferred_color: str = "black"
     preferred_style: str = "streetwear"
+    category: Optional[str] = None
     body_type: str = "regular"
     skin_tone: str = "neutral"
 
@@ -42,6 +43,7 @@ class UserProfile(BaseModel):
             "occasion": self.occasion,
             "preferred_color": self.preferred_color,
             "preferred_style": self.preferred_style,
+            "category": self.category,
             "body_type": self.body_type,
             "skin_tone": self.skin_tone,
         }
