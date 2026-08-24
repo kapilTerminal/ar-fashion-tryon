@@ -1,6 +1,18 @@
 import { http, garmentHttp } from './http';
 import type { ClothType, VtonOptions, VirtualTryonResponse } from '@/lib/types';
 
+const GARMENT_API_BASE = (process.env.NEXT_PUBLIC_GARMENT_API_BASE || 'http://127.0.0.1:5000').replace(
+  /\/+$/,
+  '',
+);
+
+function resolveUrl(url?: string): string | undefined {
+  if (!url) return undefined;
+  if (/^https?:\/\//i.test(url)) return url;
+  const cleanPath = url.startsWith('/') ? url : `/${url}`;
+  return `${GARMENT_API_BASE}${cleanPath}`;
+}
+
 export interface ProcessImagesPayload {
   bodyFile?: File; // person_image
   bodyDataUrl?: string; // fallback
@@ -209,7 +221,7 @@ export async function virtualTryOn(
   const startTime = Date.now();
 
   try {
-    // Backend returns JSON with Cloudinary URLs
+    // Backend returns JSON with Cloudinary URLs or local relative URLs
     const { data } = await garmentHttp.post<VirtualTryonResponse>('/virtual_tryon', fd, {
       signal,
       headers: {
@@ -217,15 +229,23 @@ export async function virtualTryOn(
       },
     });
 
+    const resolvedData: VirtualTryonResponse = {
+      ...data,
+      result_url: resolveUrl(data.result_url) || data.result_url,
+      person_url: resolveUrl(data.person_url) || data.person_url,
+      garment_url: resolveUrl(data.garment_url) || data.garment_url,
+      cutout_url: resolveUrl(data.cutout_url),
+    };
+
     const duration = Date.now() - startTime;
     console.log('✅ Virtual Try-On Success:', {
       duration: `${(duration / 1000).toFixed(2)}s`,
-      result_url: data.result_url,
-      cloth_type: data.cloth_type,
-      garment_classification: data.garment_classification,
+      result_url: resolvedData.result_url,
+      cloth_type: resolvedData.cloth_type,
+      garment_classification: resolvedData.garment_classification,
     });
 
-    return data;
+    return resolvedData;
   } catch (error: unknown) {
     const err = error as { response?: { status?: number; statusText?: string; data?: { detail?: string } }; message?: string };
     const duration = Date.now() - startTime;

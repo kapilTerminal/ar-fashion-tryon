@@ -27,11 +27,11 @@ async def get_gradio_client() -> Client:
     if gradio_client is None:
         try:
             logger.info(f"Connecting to Gradio Space: {GRADIO_SPACE}")
-            # Create client with specific version compatibility
+            # Create client with specific version compatibility (gradio_client 2.x uses 'token')
             gradio_client = await asyncio.to_thread(
                 Client,
                 GRADIO_SPACE,
-                hf_token=HF_TOKEN if HF_TOKEN else None
+                token=HF_TOKEN if HF_TOKEN else None
             )
             logger.info("✅ Gradio client connected successfully")
         except Exception as e:
@@ -101,42 +101,57 @@ async def _download_gradio_result(result_data: Any, base_url: str) -> bytes:
     # Download or read the image bytes
     image_bytes = None
 
-    # Check if file_path is a local file that gradio_client already downloaded
-    if file_path.startswith('/') and Path(file_path).exists():
-        # Gradio client already downloaded the file locally
+        # Check if Gradio returned a local file path.
+    # This handles both Unix paths (/tmp/...) and Windows paths (C:\Users\...).
+    file_path_obj = Path(file_path)
+
+    if file_path_obj.is_absolute() and file_path_obj.exists():
         logger.info(f"Reading locally downloaded file: {file_path}")
+
         try:
             def read_local_file(path: str) -> bytes:
-                with open(path, 'rb') as f:
+                with open(path, "rb") as f:
                     return f.read()
 
-            image_bytes = await run_in_threadpool(read_local_file, file_path)
-            logger.info(f"Successfully read {len(image_bytes)} bytes from local file")
+            image_bytes = await run_in_threadpool(
+                read_local_file,
+                str(file_path_obj)
+            )
+
+            logger.info(
+                f"Successfully read {len(image_bytes)} bytes "
+                f"from local Gradio file"
+            )
+
         except Exception as e:
-            logger.warning(f"Failed to read local file {file_path}: {e}, will try URL download")
-            # Fall through to URL download
+            logger.warning(
+                f"Failed to read local file {file_path}: {e}, "
+                "will try URL download"
+            )
 
-    # If local read failed or file doesn't exist, download from URL
+    # If local file read failed, download from URL.
     if image_bytes is None:
-        # Construct download URL
-        if file_path.startswith('/'):
-            # Local file path → construct Gradio file URL
-            image_url = f"{base_url}/gradio_api/file={file_path}"
-            logger.info(f"Constructed URL from local path: {image_url}")
-        elif file_path.startswith('http'):
-            # Already a full URL
+
+        if file_path.startswith("http://") or file_path.startswith("https://"):
             image_url = file_path
-            logger.info(f"Using full URL: {image_url}")
+
+        elif file_path.startswith("/"):
+            image_url = f"{base_url}/gradio_api/file={file_path}"
+
         else:
-            # Relative path → construct full URL
-            image_url = f"{base_url}/{file_path}"
-            logger.info(f"Constructed URL from relative path: {image_url}")
+            image_url = f"{base_url}/{file_path.lstrip('/')}"
 
-        # Download image from URL
         logger.info(f"Downloading from URL: {image_url}")
-        image_bytes = await run_in_threadpool(download_url_bytes, image_url, MAX_CONTENT_BYTES)
-        logger.info(f"Successfully downloaded {len(image_bytes)} bytes")
 
+        image_bytes = await run_in_threadpool(
+            download_url_bytes,
+            image_url,
+            MAX_CONTENT_BYTES
+        )
+
+        logger.info(
+            f"Successfully downloaded {len(image_bytes)} bytes"
+        )
     # Convert WebP/any format to RGB PNG for consistency and Cloudinary compatibility
     logger.info("Converting result image to RGB PNG format")
     png_bytes = await run_in_threadpool(convert_to_rgb_png, image_bytes)
@@ -197,8 +212,11 @@ async def call_gradio_api(
 
             logger.info("Gradio API call successful")
 
-            # Construct base URL for Gradio Space
-            base_url = f"https://{GRADIO_SPACE.replace('/', '-')}.hf.space"
+            # Construct base URL for Gradio Space / local server
+            if GRADIO_SPACE.startswith("http://") or GRADIO_SPACE.startswith("https://"):
+                base_url = GRADIO_SPACE.rstrip("/")
+            else:
+                base_url = f"https://{GRADIO_SPACE.replace('/', '-')}.hf.space"
 
             # Download result image
             result_bytes = await _download_gradio_result(result, base_url)

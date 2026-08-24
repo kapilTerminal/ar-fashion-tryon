@@ -94,6 +94,19 @@ export async function getFashionRecommendations(
       ? rawData.recommendations
       : [];
 
+    const GARMENT_API_BASE = (process.env.NEXT_PUBLIC_GARMENT_API_BASE || 'http://127.0.0.1:5000').replace(/\/+$/, '');
+
+    const normalizeImageUrl = (url?: string | null, fallbackId?: string): string => {
+      if (!url) {
+        return `${GARMENT_API_BASE}/images/${fallbackId}.jpg`;
+      }
+      if (/^https?:\/\//i.test(url)) {
+        return url;
+      }
+      const cleanPath = url.startsWith('/') ? url : `/${url}`;
+      return `${GARMENT_API_BASE}${cleanPath}`;
+    };
+
     const mappedRecommendations: GarmentRecommendation[] = rawList.map((item, index) => {
       const garment_id = String(item.id ?? item.garment_id ?? index);
       const name = item.productDisplayName || item.name || 'Garment';
@@ -103,7 +116,10 @@ export async function getFashionRecommendations(
       const similarity_score = typeof item.similarity === 'number' ? item.similarity : (item.similarity_score ?? 0);
       const final_score = typeof item.final_score === 'number' ? item.final_score : similarity_score;
 
-      const generatedImageUrl = item.image_url || item.garment_url || `http://127.0.0.1:8000/images/${garment_id}.jpg`;
+      const rawImgUrl = item.image_url || item.garment_url || item.cutout_url;
+      const resolvedImageUrl = normalizeImageUrl(rawImgUrl, garment_id);
+      const resolvedGarmentUrl = normalizeImageUrl(item.garment_url || rawImgUrl, garment_id);
+      const resolvedCutoutUrl = item.cutout_url ? normalizeImageUrl(item.cutout_url, garment_id) : undefined;
 
       return {
         rank: item.rank || index + 1,
@@ -116,9 +132,9 @@ export async function getFashionRecommendations(
         style: item.metadata?.subCategory || item.style || occasion,
         similarity_score,
         final_score,
-        image_url: generatedImageUrl,
-        garment_url: item.garment_url || generatedImageUrl,
-        cutout_url: item.cutout_url,
+        image_url: resolvedImageUrl,
+        garment_url: resolvedGarmentUrl,
+        cutout_url: resolvedCutoutUrl,
         tryon_payload: item.tryon_payload,
       };
     });

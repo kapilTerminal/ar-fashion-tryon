@@ -36,7 +36,7 @@ FOLDER_CUT = f"{CLOUDINARY_FOLDER}/cutouts"
 FOLDER_TRYON = f"{CLOUDINARY_FOLDER}/tryon_results"
 
 # -------------------- Gradio --------------------
-GRADIO_SPACE = "nawodyaishan/ar-fashion-tryon"
+GRADIO_SPACE = os.getenv("GRADIO_SPACE", "http://127.0.0.1:7860")
 HF_TOKEN = os.getenv("HF_TOKEN")  # Optional, for private spaces
 
 # -------------------- Model Paths --------------------

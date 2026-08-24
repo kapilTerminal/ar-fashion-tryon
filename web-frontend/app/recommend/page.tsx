@@ -2,23 +2,51 @@
 
 import React, { useState, useRef } from 'react';
 import Image from 'next/image';
+import { useRouter } from 'next/navigation';
 import { PageTransition } from '@/components/ui/page-transition';
 import { RecommendationForm, FormSubmitData } from '@/components/recommend/RecommendationForm';
 import { RecommendationGrid } from '@/components/recommend/RecommendationGrid';
 import { getFashionRecommendations } from '@/lib/services/recommendationApi';
 import type { RecommendationResponse, GarmentRecommendation } from '@/lib/types/recommendation';
+import type { ClothType } from '@/lib/types';
+import { useTryonStore } from '@/lib/tryon-store';
+import { useVtonStore } from '@/lib/store/useVtonStore';
 import { Sparkles, AlertCircle, CheckCircle2 } from 'lucide-react';
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { toast } from 'sonner';
 
+function resolveGarmentUrl(url?: string | null): string | null {
+  if (!url) return null;
+
+  if (/^https?:\/\/res\.cloudinary\.com/i.test(url)) {
+    return url;
+  }
+
+  const host = typeof window !== 'undefined' && window.location.hostname
+    ? window.location.hostname
+    : '127.0.0.1';
+
+  const backendBase = `http://${host}:5000`;
+  const cleanUrl = url.replace(/^https?:\/\/(127\.0\.0\.1|localhost):(8000|5000)\//i, `${backendBase}/`);
+
+  if (/^https?:\/\//i.test(cleanUrl)) {
+    return cleanUrl;
+  }
+
+  const cleanPath = cleanUrl.startsWith('/') ? cleanUrl : `/${cleanUrl}`;
+  return `${backendBase}${cleanPath}`;
+}
+
 export default function RecommendPage() {
+  const router = useRouter();
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recommendResponse, setRecommendResponse] = useState<RecommendationResponse | null>(null);
+  const [personFile, setPersonFile] = useState<File | null>(null);
 
-  // Selected Garment State (Prepared for Stage 5.2)
+  // Selected Garment State
   const [selectedGarment, setSelectedGarment] = useState<GarmentRecommendation | null>(null);
   const [selectedGarmentId, setSelectedGarmentId] = useState<string | null>(null);
   const [selectedGarmentImage, setSelectedGarmentImage] = useState<string | null>(null);
@@ -31,6 +59,7 @@ export default function RecommendPage() {
       return;
     }
 
+    setPersonFile(formData.personFile);
     setIsLoading(true);
     setError(null);
 
@@ -65,17 +94,47 @@ export default function RecommendPage() {
     }
   };
 
-  const handleSelectGarment = (garment: GarmentRecommendation) => {
+  const handleSelectGarment = async (garment: GarmentRecommendation) => {
     const id = garment.garment_id || String(garment.rank);
-    const imgUrl = garment.cutout_url || garment.garment_url || garment.image_url || null;
+    const rawImgUrl = garment.cutout_url || garment.garment_url || garment.image_url || null;
+    const resolvedImgUrl = resolveGarmentUrl(rawImgUrl);
 
     setSelectedGarment(garment);
     setSelectedGarmentId(id);
-    setSelectedGarmentImage(imgUrl);
+    setSelectedGarmentImage(resolvedImgUrl);
 
-    toast.success(`Selected "${garment.name || 'Garment'}" for Try-On preview!`, {
-      description: 'Garment saved in state for Stage 5.2 Try-On integration.',
-    });
+    try {
+      useTryonStore.getState().setMode('photo');
+
+      const vtonStore = useVtonStore.getState();
+      vtonStore.setPath('NORMAL');
+
+      if (personFile) {
+        await vtonStore.setBody(personFile);
+      }
+
+      if (resolvedImgUrl) {
+        await vtonStore.setGarmentUrl(resolvedImgUrl, id);
+      }
+
+      const catLower = (garment.category || '').toLowerCase();
+      const clothType: ClothType =
+        (garment.tryon_payload?.cloth_type as ClothType) ||
+        (catLower.includes('bottom') || catLower.includes('pant') || catLower.includes('trouser') || catLower.includes('skirt')
+          ? 'lower'
+          : catLower.includes('dress') || catLower.includes('overall')
+            ? 'overall'
+            : 'upper');
+
+      vtonStore.setOptions({ clothType });
+      vtonStore.setStep(personFile && resolvedImgUrl ? 'GENERATE' : 'BODY');
+
+      toast.success(`Selected "${garment.name || 'Garment'}" for Try-On preview! Redirecting...`);
+      router.push('/try-on');
+    } catch (err) {
+      console.error('Failed VTON handoff:', err);
+      router.push('/try-on');
+    }
   };
 
   const queryParams = recommendResponse?.query_parameters;

@@ -7,6 +7,46 @@ import { analyzeImageQuality, type QualityLevel } from '@/lib/utils/imageQuality
 import { ensureBackendCompatibleFormat } from '@/lib/utils/imageConversion';
 import { toast } from 'sonner';
 
+/**
+ * Converts an image URL to a File object using Canvas API (0 network fetch calls)
+ */
+export async function convertImageUrlToFile(url: string, filename: string): Promise<File> {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+
+    img.onload = () => {
+      try {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.naturalWidth || img.width || 300;
+        canvas.height = img.naturalHeight || img.height || 400;
+
+        const ctx = canvas.getContext('2d');
+        if (!ctx) {
+          throw new Error('Canvas context unavailable');
+        }
+
+        ctx.drawImage(img, 0, 0);
+
+        canvas.toBlob((blob) => {
+          if (!blob) {
+            throw new Error('Canvas toBlob conversion failed');
+          }
+          resolve(new File([blob], filename, { type: 'image/png' }));
+        }, 'image/png');
+      } catch (err) {
+        reject(err);
+      }
+    };
+
+    img.onerror = () => {
+      reject(new Error(`Failed to load image at ${url} for Canvas conversion`));
+    };
+
+    img.src = url;
+  });
+}
+
 // Three different try-on paths
 export type TryOnPath = 'NORMAL' | 'FULL' | 'REFERENCE';
 export type VtonStep = 'PATH_SELECT' | 'BODY' | 'GARMENT' | 'UPPER' | 'LOWER' | 'PREVIEW' | 'GENERATE' | 'RESULT';
@@ -79,6 +119,7 @@ interface VtonState {
 
   // Normal path - single garment
   setGarmentFile: (file: File | undefined, skipClassification?: boolean) => Promise<{ ok: boolean; message?: string }>;
+  setGarmentUrl: (previewUrl: string, id?: string) => Promise<void>;
 
   // Full mode - upper and lower garments
   setUpperGarment: (file: File | undefined) => Promise<{ ok: boolean; message?: string }>;
@@ -307,6 +348,88 @@ export const useVtonStore = create<VtonState>((set, get) => ({
 
       return { ok: true }; // Still return ok, classification is optional
     }
+  },
+
+  setGarmentUrl: async (previewUrl, id) => {
+    if (!previewUrl) {
+      set({
+        garment: {
+          ...get().garment,
+          previewUrl: undefined,
+          id: undefined,
+          file: undefined,
+        },
+        status: 'idle',
+      });
+      return;
+    }
+
+    let garmentFile: File | undefined = undefined;
+    const fileName = `garment_${id || 'select'}.png`;
+
+    console.log('🔍 setGarmentUrl starting for:', { previewUrl, id });
+
+    try {
+      const response = await fetch(previewUrl);
+      if (response.ok) {
+        const blob = await response.blob();
+        garmentFile = new File([blob], fileName, { type: blob.type || 'image/png' });
+        console.log('✅ setGarmentUrl: HTTP fetch succeeded:', {
+          previewUrl,
+          status: response.status,
+          blobSize: blob.size,
+          blobType: blob.type,
+          createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
+        });
+      } else {
+        console.warn('⚠️ setGarmentUrl: HTTP fetch non-OK status:', response.status, 'Trying Canvas fallback...');
+        garmentFile = await convertImageUrlToFile(previewUrl, fileName);
+        console.log('✅ setGarmentUrl: Canvas conversion succeeded:', {
+          previewUrl,
+          createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
+        });
+      }
+    } catch (fetchErr) {
+      console.warn('⚠️ setGarmentUrl: Direct fetch threw error, trying Canvas fallback:', fetchErr);
+      try {
+        garmentFile = await convertImageUrlToFile(previewUrl, fileName);
+        console.log('✅ setGarmentUrl: Canvas fallback succeeded:', {
+          previewUrl,
+          createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
+        });
+      } catch (convErr) {
+        console.error('❌ setGarmentUrl: Canvas fallback failed:', convErr);
+      }
+    }
+
+    if (!garmentFile) {
+      const msg = `Failed to prepare garment image file from URL: ${previewUrl}`;
+      console.error('❌ setGarmentUrl failed to create File object:', msg);
+      set({
+        garment: {
+          ...get().garment,
+          previewUrl,
+          id,
+          file: undefined,
+        },
+        status: 'error',
+        error: msg,
+      });
+      toast.error('Failed to load garment image');
+      return;
+    }
+
+    set({
+      garment: {
+        ...get().garment,
+        previewUrl,
+        id,
+        file: garmentFile,
+      },
+      status: 'valid',
+      resultUrl: undefined,
+      error: undefined,
+    });
   },
 
   // Full mode - upper garment upload
@@ -612,7 +735,7 @@ export const useVtonStore = create<VtonState>((set, get) => ({
       checks.requiredImagesOK = !!body.file;
       checks.outfitReady = !!outfit.url;
     } else {
-      checks.requiredImagesOK = !!body.file && !!garment.file;
+      checks.requiredImagesOK = !!body.file && !!(garment.file || garment.previewUrl);
     }
 
     return checks;
@@ -628,7 +751,7 @@ export const useVtonStore = create<VtonState>((set, get) => ({
       return !!outfit.url; // Need constructed outfit
     }
 
-    return !!garment.file; // Need single garment
+    return !!(garment.file || garment.previewUrl); // Need single garment
   },
 
   reset: () => {
@@ -691,11 +814,45 @@ export const useVtonStore = create<VtonState>((set, get) => ({
         console.log('🎨 Full mode: Using constructed outfit');
       } else {
         // NORMAL or REFERENCE mode - use single garment
-        if (!garment.file) {
-          set({ error: 'Please upload a garment image', status: 'error' });
+        if (garment.file) {
+          garmentFileForTryOn = garment.file;
+          console.log('🎨 tryOn: Using existing garment.file:', {
+            name: garmentFileForTryOn.name,
+            size: garmentFileForTryOn.size,
+            type: garmentFileForTryOn.type,
+            fallbackRequired: false,
+          });
+        } else if (garment.previewUrl) {
+          console.log('🎨 tryOn: garment.file missing, executing defensive fallback fetch for previewUrl:', garment.previewUrl);
+          try {
+            const res = await fetch(garment.previewUrl);
+            if (res.ok) {
+              const blob = await res.blob();
+              garmentFileForTryOn = new File([blob], `garment_${garment.id || 'select'}.png`, { type: blob.type || 'image/png' });
+              console.log('✅ tryOn: Defensive HTTP fetch succeeded:', {
+                name: garmentFileForTryOn.name,
+                size: garmentFileForTryOn.size,
+                type: garmentFileForTryOn.type,
+                fallbackRequired: true,
+              });
+            } else {
+              console.warn('⚠️ tryOn: Defensive HTTP fetch returned non-ok status:', res.status, 'Trying Canvas fallback...');
+              garmentFileForTryOn = await convertImageUrlToFile(garment.previewUrl, `garment_${garment.id || 'select'}.png`);
+            }
+          } catch (fetchErr) {
+            console.warn('⚠️ tryOn: Defensive HTTP fetch error, trying Canvas fallback:', fetchErr);
+            try {
+              garmentFileForTryOn = await convertImageUrlToFile(garment.previewUrl, `garment_${garment.id || 'select'}.png`);
+            } catch (convErr) {
+              console.error('❌ tryOn: Canvas conversion fallback failed:', convErr);
+              set({ error: 'Failed to process garment image for Virtual Try-On', status: 'error' });
+              return;
+            }
+          }
+        } else {
+          set({ error: 'Please upload or select a garment image', status: 'error' });
           return;
         }
-        garmentFileForTryOn = garment.file;
 
         console.log(`🎨 ${tryOnPath} mode: Using single garment`);
       }

@@ -1,11 +1,16 @@
 import argparse
 import os
-os.environ['CUDA_HOME'] = '/usr/local/cuda'
-os.environ['PATH'] = os.environ['PATH'] + ':/usr/local/cuda/bin'
+if os.name != "nt":
+    os.environ['CUDA_HOME'] = '/usr/local/cuda'
+    os.environ['PATH'] = os.environ['PATH'] + ':/usr/local/cuda/bin'
 from datetime import datetime
 
 import gradio as gr
-import spaces
+try:
+    import spaces
+    gpu_decorator = spaces.GPU(duration=120)
+except Exception:
+    gpu_decorator = lambda fn: fn
 import numpy as np
 import torch
 from diffusers.image_processor import VaeImageProcessor
@@ -182,7 +187,7 @@ automasker = AutoMasker(
     device='cuda', 
 )
 
-@spaces.GPU(duration=120)
+@gpu_decorator
 def submit_function(
     person_image,
     cloth_image,
@@ -719,7 +724,12 @@ def app_gradio():
                 result_image,
             )
             
-    demo.queue().launch(share=True, show_error=True)
+    demo.queue().launch(
+        server_name="127.0.0.1",
+        server_port=7860,
+        share=False,
+        show_error=True
+    )
 
 
 if __name__ == "__main__":

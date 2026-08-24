@@ -49,8 +49,16 @@ BASE_DIR = Path(__file__).resolve().parent
 
 app.mount(
     "/images",
-    StaticFiles(directory=BASE_DIR / "dataset" / "images"),
+    StaticFiles(directory=BASE_DIR / "dataset" / "fashion_dataset" / "Images"),
     name="images",
+)
+
+uploads_dir = BASE_DIR / "uploads"
+uploads_dir.mkdir(parents=True, exist_ok=True)
+app.mount(
+    "/uploads",
+    StaticFiles(directory=uploads_dir),
+    name="uploads",
 )
 
 # Add middlewares (order matters - first added is outermost)
