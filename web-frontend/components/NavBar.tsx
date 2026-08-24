@@ -61,123 +61,130 @@ export default function NavBar() {
             </div>
           </Link>
 
-          {/* Center: Tabs (Try-On page only) or Navigation Menu */}
-          {isTryOnPage ? (
-            <div className="flex-1 flex justify-center px-2 sm:px-4">
+          {/* Center: Navigation Menu */}
+          <div className="hidden md:flex items-center space-x-1">
+            {navigationItems.map((item) => {
+              const isActive = pathname === item.href;
+              return <NavigationLink key={item.href} item={item} isActive={isActive} />;
+            })}
+          </div>
+
+          {/* Mode Switcher pill on Try-On page (Desktop & Tablet) */}
+          {isTryOnPage && (
+            <div className="hidden sm:flex items-center px-2">
               <Tabs
                 value={activeMode}
                 onValueChange={(value) => {
-                  // Prevent switching to AR mode on mobile
-                  if (value === 'ar' && isMobileDevice) {
-                    return;
-                  }
+                  if (value === 'ar' && isMobileDevice) return;
                   setMode(value as 'ar' | 'photo');
                 }}
-                className="w-full max-w-md"
+                className="w-auto"
               >
-                <TabsList className="grid w-full grid-cols-2 h-8 sm:h-10">
+                <TabsList className="h-9 bg-muted/60 p-1 border">
                   <TabsTrigger
                     value="ar"
                     disabled={isMobileDevice}
-                    className="relative text-xs sm:text-sm"
+                    className="text-xs px-3 py-1 font-medium"
                   >
-                    <span className="flex items-center gap-1 sm:gap-1.5">
-                      <span className="hidden sm:inline">Live AR Preview</span>
-                      <span className="inline sm:hidden">AR</span>
+                    <span className="flex items-center gap-1.5">
+                      <span>Live AR</span>
                       {isMobileDevice && (
-                        <Badge variant="secondary" className="ml-0.5 sm:ml-1 text-[10px] px-1 py-0 h-3.5 sm:h-4">
-                          <Smartphone className="h-2 w-2 sm:h-2.5 sm:w-2.5" />
+                        <Badge variant="secondary" className="px-1 py-0 text-[9px]">
+                          <Smartphone className="h-2 w-2" />
                         </Badge>
                       )}
                     </span>
                   </TabsTrigger>
-                  <TabsTrigger value="photo" className="text-xs sm:text-sm">
-                    <span className="hidden sm:inline">Photo Try-On (HD)</span>
-                    <span className="inline sm:hidden">Photo HD</span>
+                  <TabsTrigger value="photo" className="text-xs px-3 py-1 font-medium">
+                    Photo HD
                   </TabsTrigger>
                 </TabsList>
               </Tabs>
             </div>
-          ) : (
-            <div className="hidden md:flex items-center space-x-1">
-              {navigationItems.map((item) => {
-                const isActive = pathname === item.href;
-                return <NavigationLink key={item.href} item={item} isActive={isActive} />;
-              })}
-            </div>
           )}
 
-          {/* Mobile Navigation Menu */}
-          {!isTryOnPage && (
-            <div className="md:hidden">
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Navigation Menu">
-                    <div className="w-4 h-4 flex flex-col justify-center space-y-0.5">
-                      <div className="w-full h-0.5 bg-current" />
-                      <div className="w-full h-0.5 bg-current" />
-                      <div className="w-full h-0.5 bg-current" />
-                    </div>
-                  </Button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-56">
-                  {navigationItems.map((item) => {
-                    const isActive = pathname === item.href;
-                    const Icon = item.icon;
+          {/* Mobile Navigation Dropdown Menu (Always visible on mobile) */}
+          <div className="md:hidden">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" size="sm" className="h-8 w-8 p-0" aria-label="Navigation Menu">
+                  <div className="w-4 h-4 flex flex-col justify-center space-y-1">
+                    <div className="w-full h-0.5 bg-current rounded-full" />
+                    <div className="w-full h-0.5 bg-current rounded-full" />
+                    <div className="w-full h-0.5 bg-current rounded-full" />
+                  </div>
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-56">
+                {navigationItems.map((item) => {
+                  const isActive = pathname === item.href;
+                  const Icon = item.icon;
 
-                    return (
-                      <DropdownMenuItem key={item.href} asChild>
-                        <Link
-                          href={item.href}
-                          className={cn(
-                            'flex items-center gap-3 cursor-pointer',
-                            isActive && 'bg-accent'
-                          )}
-                        >
-                          <Icon className="w-4 h-4 flex-shrink-0" />
-                          <div className="flex-1 min-w-0">
-                            <div className="flex items-center gap-1.5">
-                              <span className="font-medium text-sm truncate">{item.title}</span>
-                              {item.badge && (
-                                <Badge variant="secondary" className="h-3.5 px-1 text-[10px] flex-shrink-0">
-                                  {item.badge}
-                                </Badge>
-                              )}
-                            </div>
-                            <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                  return (
+                    <DropdownMenuItem key={item.href} asChild>
+                      <Link
+                        href={item.href}
+                        className={cn(
+                          'flex items-center gap-3 cursor-pointer',
+                          isActive && 'bg-accent'
+                        )}
+                      >
+                        <Icon className="w-4 h-4 flex-shrink-0" />
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-1.5">
+                            <span className="font-medium text-sm truncate">{item.title}</span>
+                            {item.badge && (
+                              <Badge variant="secondary" className="h-3.5 px-1 text-[10px] flex-shrink-0">
+                                {item.badge}
+                              </Badge>
+                            )}
                           </div>
-                        </Link>
-                      </DropdownMenuItem>
-                    );
-                  })}
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem asChild>
-                    <Link href="/privacy" className="flex items-center gap-3 cursor-pointer">
-                      <Shield className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">Privacy</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <Link href="/contact" className="flex items-center gap-3 cursor-pointer">
-                      <Mail className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">Contact</span>
-                    </Link>
-                  </DropdownMenuItem>
-                  <DropdownMenuItem asChild>
-                    <a
-                      href="https://github.com/nawodyaishan/ar-fashion-tryon"
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="flex items-center gap-3 cursor-pointer"
-                    >
-                      <Github className="w-4 h-4 flex-shrink-0" />
-                      <span className="text-sm">Source Code</span>
-                    </a>
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
-            </div>
-          )}
+                          <p className="text-xs text-muted-foreground truncate">{item.description}</p>
+                        </div>
+                      </Link>
+                    </DropdownMenuItem>
+                  );
+                })}
+                <DropdownMenuSeparator />
+                {isTryOnPage && (
+                  <>
+                    <DropdownMenuItem onClick={openHelp}>
+                      <HelpCircle className="w-4 h-4 mr-2" />
+                      <span>Help</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuItem onClick={openAbout}>
+                      <Info className="w-4 h-4 mr-2" />
+                      <span>About</span>
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                  </>
+                )}
+                <DropdownMenuItem asChild>
+                  <Link href="/privacy" className="flex items-center gap-3 cursor-pointer">
+                    <Shield className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm">Privacy</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <Link href="/contact" className="flex items-center gap-3 cursor-pointer">
+                    <Mail className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm">Contact</span>
+                  </Link>
+                </DropdownMenuItem>
+                <DropdownMenuItem asChild>
+                  <a
+                    href="https://github.com/nawodyaishan/ar-fashion-tryon"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-3 cursor-pointer"
+                  >
+                    <Github className="w-4 h-4 flex-shrink-0" />
+                    <span className="text-sm">Source Code</span>
+                  </a>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
 
 
           {/* Right Section */}
