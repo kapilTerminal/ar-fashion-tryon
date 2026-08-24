@@ -179,3 +179,4 @@ htmlcov/
 .idea
 
 image-extraction-backend/static
+.pnpm-store/
