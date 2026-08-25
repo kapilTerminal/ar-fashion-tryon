@@ -180,3 +180,11 @@ htmlcov/
 
 image-extraction-backend/static
 .pnpm-store/
+# Temporary project analysis
+PROJECT_UNDERSTANDING_TEMP.html
+
+# Generated CatVTON outputs
+catvton-gradio/resource/demo/output/
+
+# Temporary recommendation diff
+recommendation_diff.txt
