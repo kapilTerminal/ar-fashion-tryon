@@ -74,7 +74,7 @@ export default function AboutModal() {
             <h3 className="font-semibold">Links</h3>
             <div className="flex flex-col gap-2">
               <a
-                href="https://github.com/your-repo/ar-fashion-tryon"
+                href="https://github.com/kapilTerminal/ar-fashion-tryon"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="flex items-center gap-2 text-sm text-primary hover:underline"

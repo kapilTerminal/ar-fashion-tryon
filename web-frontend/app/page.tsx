@@ -337,7 +337,7 @@ export default function Home() {
                 Docs
               </Link>
               <Link
-                href="https://github.com/yourusername/ar-fashion-tryon"
+                href="https://github.com/kapilTerminal/ar-fashion-tryon"
                 className="text-muted-foreground hover:text-primary transition-colors font-medium"
                 target="_blank"
                 rel="noopener noreferrer"

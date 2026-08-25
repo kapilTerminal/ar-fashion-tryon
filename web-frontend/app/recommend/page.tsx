@@ -95,9 +95,11 @@ export default function RecommendPage() {
   };
 
   const handleSelectGarment = async (garment: GarmentRecommendation) => {
+    console.log('🔬 [handleSelectGarment START]', { garment });
     const id = garment.garment_id || String(garment.rank);
     const rawImgUrl = garment.cutout_url || garment.garment_url || garment.image_url || null;
     const resolvedImgUrl = resolveGarmentUrl(rawImgUrl);
+    console.log('🔬 [handleSelectGarment URLs]', { rawImgUrl, resolvedImgUrl });
 
     setSelectedGarment(garment);
     setSelectedGarmentId(id);

@@ -34,8 +34,8 @@ export default function ContactPage() {
             </CardHeader>
             <CardContent>
               <Button variant="outline" className="w-full justify-between" asChild>
-                <a href="mailto:nawodyain@gmail.com">
-                  <span>nawodyain@gmail.com</span>
+                <a href="mailto:kapilkarki0018@gmail.com">
+                  <span>kapilkarki0018@gmail.com</span>
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
@@ -55,8 +55,8 @@ export default function ContactPage() {
             </CardHeader>
             <CardContent>
               <Button variant="outline" className="w-full justify-between" asChild>
-                <a href="https://github.com/nawodyaishan" target="_blank" rel="noopener noreferrer">
-                  <span>@nawodyaishan</span>
+                <a href="https://github.com/kapilTerminal" target="_blank" rel="noopener noreferrer">
+                  <span>@kapilTerminal</span>
                   <ExternalLink className="h-4 w-4" />
                 </a>
               </Button>
@@ -76,7 +76,7 @@ export default function ContactPage() {
             <CardContent className="space-y-3">
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a
-                  href="https://github.com/nawodyaishan/ar-fashion-tryon"
+                  href="https://github.com/kapilTerminal/ar-fashion-tryon"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -86,7 +86,7 @@ export default function ContactPage() {
               </Button>
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a
-                  href="https://github.com/nawodyaishan/ar-fashion-tryon/issues"
+                  href="https://github.com/kapilTerminal/ar-fashion-tryon/issues"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -96,7 +96,7 @@ export default function ContactPage() {
               </Button>
               <Button variant="outline" className="w-full justify-between" asChild>
                 <a
-                  href="https://github.com/nawodyaishan/ar-fashion-tryon/discussions"
+                  href="https://github.com/kapilTerminal/ar-fashion-tryon/discussions"
                   target="_blank"
                   rel="noopener noreferrer"
                 >
@@ -122,7 +122,7 @@ export default function ContactPage() {
                   <p className="text-sm text-muted-foreground">
                     Please create an issue on our{' '}
                     <a
-                      href="https://github.com/nawodyaishan/ar-fashion-tryon/issues"
+                      href="https://github.com/kapilTerminal/ar-fashion-tryon/issues"
                       className="text-primary hover:underline"
                       target="_blank"
                       rel="noopener noreferrer"
@@ -152,8 +152,8 @@ export default function ContactPage() {
                   <h3 className="font-semibold mb-2">How can I use this for commercial purposes?</h3>
                   <p className="text-sm text-muted-foreground">
                     Please reach out to us via email at{' '}
-                    <a href="mailto:nawodyain@gmail.com" className="text-primary hover:underline">
-                      nawodyain@gmail.com
+                    <a href="mailto:kapilkarki0018@gmail.com" className="text-primary hover:underline">
+                      kapilkarki0018@gmail.com
                     </a>
                     {' '}to discuss licensing and commercial use.
                   </p>

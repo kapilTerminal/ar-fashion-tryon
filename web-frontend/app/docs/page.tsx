@@ -806,7 +806,7 @@ export default function DocsPage() {
               <CardContent>
                 <Button variant="outline" className="w-full justify-between" asChild>
                   <a
-                    href="https://github.com/nawodyaishan/ar-fashion-tryon"
+                    href="https://github.com/kapilTerminal/ar-fashion-tryon"
                     target="_blank"
                     rel="noopener noreferrer"
                   >
@@ -828,7 +828,7 @@ export default function DocsPage() {
                 </Button>
                 <Button variant="outline" className="w-full justify-between" asChild>
                   <a
-                    href="https://github.com/nawodyaishan/ar-fashion-tryon/issues"
+                    href="https://github.com/kapilTerminal/ar-fashion-tryon/issues"
                     target="_blank"
                     rel="noopener noreferrer"
                   >

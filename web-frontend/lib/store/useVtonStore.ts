@@ -8,43 +8,55 @@ import { ensureBackendCompatibleFormat } from '@/lib/utils/imageConversion';
 import { toast } from 'sonner';
 
 /**
- * Converts an image URL to a File object using Canvas API (0 network fetch calls)
+ * Converts an image URL to a File object via direct fetch.
  */
 export async function convertImageUrlToFile(url: string, filename: string): Promise<File> {
-  return new Promise((resolve, reject) => {
-    const img = new Image();
-    img.crossOrigin = 'anonymous';
-
-    img.onload = () => {
-      try {
-        const canvas = document.createElement('canvas');
-        canvas.width = img.naturalWidth || img.width || 300;
-        canvas.height = img.naturalHeight || img.height || 400;
-
-        const ctx = canvas.getContext('2d');
-        if (!ctx) {
-          throw new Error('Canvas context unavailable');
-        }
-
-        ctx.drawImage(img, 0, 0);
-
-        canvas.toBlob((blob) => {
-          if (!blob) {
-            throw new Error('Canvas toBlob conversion failed');
-          }
-          resolve(new File([blob], filename, { type: 'image/png' }));
-        }, 'image/png');
-      } catch (err) {
-        reject(err);
-      }
-    };
-
-    img.onerror = () => {
-      reject(new Error(`Failed to load image at ${url} for Canvas conversion`));
-    };
-
-    img.src = url;
+  console.log('🔬 [convertImageUrlToFile START]', {
+    url,
+    jsonUrl: JSON.stringify(url),
+    urlLength: url?.length,
+    typeofUrl: typeof url,
+    origin: typeof window !== 'undefined' ? window.location.origin : 'server',
+    typeofFetch: typeof fetch,
   });
+
+  try {
+    const parsedUrl = new URL(url, typeof window !== 'undefined' ? window.location.origin : undefined);
+    console.log('🔬 [convertImageUrlToFile Parsed URL]', parsedUrl.href);
+
+    console.log('🔬 [convertImageUrlToFile] Executing fetch()...');
+    const response = await fetch(url);
+    console.log('🔬 [convertImageUrlToFile] fetch() finished:', {
+      status: response?.status,
+      ok: response?.ok,
+      statusText: response?.statusText,
+      contentType: response?.headers?.get('content-type'),
+      corsHeader: response?.headers?.get('access-control-allow-origin'),
+    });
+
+    if (!response.ok) {
+      throw new Error(`HTTP ${response.status} ${response.statusText} for URL: ${url}`);
+    }
+
+    console.log('🔬 [convertImageUrlToFile] Reading response.blob()...');
+    const blob = await response.blob();
+    console.log('🔬 [convertImageUrlToFile] blob() succeeded:', { size: blob.size, type: blob.type });
+
+    console.log('🔬 [convertImageUrlToFile] Creating new File()...');
+    const file = new File([blob], filename, { type: blob.type || 'image/jpeg' });
+    console.log('🔬 [convertImageUrlToFile] File created:', { name: file.name, size: file.size, type: file.type });
+
+    return file;
+  } catch (err: unknown) {
+    const error = err as Error;
+    console.error('💥 [convertImageUrlToFile FAIL]', {
+      name: error?.name,
+      message: error?.message,
+      stack: error?.stack,
+      rawError: err,
+    });
+    throw new Error(`[convertImageUrlToFile] ${error?.name || 'Error'}: ${error?.message || String(err)}`);
+  }
 }
 
 // Three different try-on paths
@@ -351,6 +363,7 @@ export const useVtonStore = create<VtonState>((set, get) => ({
   },
 
   setGarmentUrl: async (previewUrl, id) => {
+    console.log('🔬 [setGarmentUrl] Starting:', { previewUrl, id, jsonUrl: JSON.stringify(previewUrl) });
     if (!previewUrl) {
       set({
         garment: {
@@ -367,39 +380,20 @@ export const useVtonStore = create<VtonState>((set, get) => ({
     let garmentFile: File | undefined = undefined;
     const fileName = `garment_${id || 'select'}.png`;
 
-    console.log('🔍 setGarmentUrl starting for:', { previewUrl, id });
-
     try {
-      const response = await fetch(previewUrl);
-      if (response.ok) {
-        const blob = await response.blob();
-        garmentFile = new File([blob], fileName, { type: blob.type || 'image/png' });
-        console.log('✅ setGarmentUrl: HTTP fetch succeeded:', {
-          previewUrl,
-          status: response.status,
-          blobSize: blob.size,
-          blobType: blob.type,
-          createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
-        });
-      } else {
-        console.warn('⚠️ setGarmentUrl: HTTP fetch non-OK status:', response.status, 'Trying Canvas fallback...');
-        garmentFile = await convertImageUrlToFile(previewUrl, fileName);
-        console.log('✅ setGarmentUrl: Canvas conversion succeeded:', {
-          previewUrl,
-          createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
-        });
-      }
-    } catch (fetchErr) {
-      console.warn('⚠️ setGarmentUrl: Direct fetch threw error, trying Canvas fallback:', fetchErr);
-      try {
-        garmentFile = await convertImageUrlToFile(previewUrl, fileName);
-        console.log('✅ setGarmentUrl: Canvas fallback succeeded:', {
-          previewUrl,
-          createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
-        });
-      } catch (convErr) {
-        console.error('❌ setGarmentUrl: Canvas fallback failed:', convErr);
-      }
+      garmentFile = await convertImageUrlToFile(previewUrl, fileName);
+      console.log('✅ [setGarmentUrl] convertImageUrlToFile succeeded:', {
+        previewUrl,
+        createdFile: { name: garmentFile.name, size: garmentFile.size, type: garmentFile.type },
+      });
+    } catch (convErr: unknown) {
+      const error = convErr as Error;
+      console.error('💥 [setGarmentUrl] convertImageUrlToFile failed:', {
+        name: error?.name,
+        message: error?.message,
+        stack: error?.stack,
+        rawError: convErr,
+      });
     }
 
     if (!garmentFile) {

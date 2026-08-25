@@ -42,6 +42,16 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
+from starlette.responses import Response
+
+class CORSStaticFiles(StaticFiles):
+    def file_response(self, *args, **kwargs) -> Response:
+        resp = super().file_response(*args, **kwargs)
+        resp.headers["Access-Control-Allow-Origin"] = "*"
+        resp.headers["Access-Control-Allow-Methods"] = "GET, HEAD, OPTIONS"
+        resp.headers["Access-Control-Allow-Headers"] = "*"
+        return resp
+
 # -------------------- FastAPI App --------------------
 app = FastAPI(title="Garment Extraction API", version="2.0.0")
 
@@ -49,7 +59,7 @@ BASE_DIR = Path(__file__).resolve().parent
 
 app.mount(
     "/images",
-    StaticFiles(directory=BASE_DIR / "dataset" / "fashion_dataset" / "Images"),
+    CORSStaticFiles(directory=BASE_DIR / "dataset" / "fashion_dataset" / "Images"),
     name="images",
 )
 
@@ -57,7 +67,7 @@ uploads_dir = BASE_DIR / "uploads"
 uploads_dir.mkdir(parents=True, exist_ok=True)
 app.mount(
     "/uploads",
-    StaticFiles(directory=uploads_dir),
+    CORSStaticFiles(directory=uploads_dir),
     name="uploads",
 )
 

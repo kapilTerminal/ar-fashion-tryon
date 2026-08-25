@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Recommendation Engine Data Models & Types
  * Stage 5.1
@@ -35,14 +34,8 @@ export interface RawGarmentMetadata {
 export interface RawGarmentRecommendation {
   id?: string | number;
   garment_id?: string | number;
-  rank?: number;
   productDisplayName?: string;
   name?: string;
-  category?: string;
-  color?: string;
-  primary_color?: string;
-  style?: string;
-  occasion?: string;
   similarity?: number;
   similarity_score?: number;
   final_score?: number;

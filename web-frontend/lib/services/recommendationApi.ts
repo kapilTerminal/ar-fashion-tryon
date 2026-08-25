@@ -129,7 +129,7 @@ export async function getFashionRecommendations(
         occasion,
         color: primary_color,
         primary_color,
-        style: item.metadata?.subCategory || item.style || occasion,
+        style: item.metadata?.style || item.style || item.metadata?.subCategory || occasion,
         similarity_score,
         final_score,
         image_url: resolvedImageUrl,

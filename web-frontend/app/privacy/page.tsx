@@ -154,7 +154,7 @@ export default function PrivacyPage() {
                 <li>• <strong>Access:</strong> Request information about data we may have</li>
                 <li>• <strong>Deletion:</strong> Images are automatically deleted; logs can be cleared on request</li>
                 <li>• <strong>Opt-out:</strong> Don&apos;t use Photo HD mode if you prefer local-only processing</li>
-                <li>• <strong>Questions:</strong> Contact us at <a href="mailto:nawodyain@gmail.com" className="text-primary hover:underline">nawodyain@gmail.com</a></li>
+                <li>• <strong>Questions:</strong> Contact us at <a href="mailto:kapilkarki0018@gmail.com" className="text-primary hover:underline">kapilkarki0018@gmail.com</a></li>
               </ul>
             </CardContent>
           </Card>
@@ -213,8 +213,8 @@ export default function PrivacyPage() {
                 If you have any questions about this privacy policy or how we handle your data, please reach out:
               </p>
               <div className="space-y-2">
-                <p>📧 Email: <a href="mailto:nawodyain@gmail.com" className="text-primary hover:underline">nawodyain@gmail.com</a></p>
-                <p>💻 GitHub: <a href="https://github.com/nawodyaishan" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">@nawodyaishan</a></p>
+                <p>📧 Email: <a href="mailto:kapilkarki0018@gmail.com" className="text-primary hover:underline">kapilkarki0018@gmail.com</a></p>
+                <p>💻 GitHub: <a href="https://github.com/kapilTerminal" className="text-primary hover:underline" target="_blank" rel="noopener noreferrer">@kapilTerminal</a></p>
               </div>
             </CardContent>
           </Card>
